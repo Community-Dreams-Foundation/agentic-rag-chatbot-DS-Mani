@@ -1,0 +1,13 @@
+Agentic RAG Chatbot Demo Document
+
+This demo document describes a minimal retrieval-augmented generation (RAG) flow.
+Documents are chunked into roughly 800-character segments with about 100 characters
+of overlap. Each chunk is stored with its source filename and a chunk_id so answers
+can include precise citations.
+
+Retrieval uses TF-IDF vectors with cosine similarity. The query is tokenized and
+weighted by inverse document frequency, then compared to each chunk vector to pick
+the top matches.
+
+Citations include the source file, a locator like "chunk_3", and a short snippet
+from the chunk to show exactly where the answer came from.

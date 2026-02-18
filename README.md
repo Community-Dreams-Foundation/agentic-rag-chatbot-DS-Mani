@@ -46,9 +46,9 @@ You may implement one feature or multiple. Partial implementations are acceptabl
 ---
 
 ## Participant Info (Required)
-- Full Name:
-- Email:
-- GitHub Username:
+- Full Name: TODO
+- Email: TODO
+- GitHub Username: TODO
 
 ---
 
@@ -243,13 +243,24 @@ These are optional enhancements. They are not required, but can earn bonus point
 
 Provide exact commands a judge can run.
 
-Example (replace with your real commands):
-
 ```text
-# install dependencies
-# run the app
-# open UI or run CLI
+# (optional) create and activate a venv
+python3 -m venv venv
+source venv/bin/activate
+
+# (optional) install PDF support
+pip install -r requirements.txt
+
+# run the required end-to-end sanity flow
+make sanity
+
+# manual CLI usage
+python3 -m app.cli ingest --input sample_docs --index artifacts/index.json
+python3 -m app.cli ask --index artifacts/index.json --question "What retrieval method does the demo document describe?"
+python3 -m app.cli memory --text "I prefer weekly summaries on Mondays."
 ```
+
+Supported inputs: `.txt`, `.md`, and `.pdf` (PDF requires `pymupdf`).
 
 ---
 

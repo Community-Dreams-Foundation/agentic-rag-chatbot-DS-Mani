@@ -15,43 +15,45 @@ Keep this short (1–2 pages).
 ## High-Level Flow
 
 ### 1) Ingestion (Upload → Parse → Chunk)
-- Supported inputs:
-- Parsing approach:
-- Chunking strategy:
+- Supported inputs: `.txt`, `.md`, `.pdf` via CLI directory/file paths.
+- Parsing approach: read UTF-8 text directly; PDFs are extracted per page using PyMuPDF.
+- Chunking strategy: split by paragraph, then further split long paragraphs into
+  ~800-character chunks with ~100-character overlap.
 - Metadata captured per chunk (recommended):
   - source filename
-  - page/section (if available)
-  - chunk_id
+  - page (if PDF)
+  - chunk_id (implicit locator)
 
 ### 2) Indexing / Storage
-- Vector store choice (FAISS/Chroma/pgvector/etc):
-- Persistence:
-- Optional lexical index (BM25):
+- Vector store choice: in-memory TF-IDF vectors computed in Python stdlib.
+- Persistence: JSON index saved to `artifacts/index.json`.
+- Optional lexical index (BM25): not implemented (TF-IDF only).
 
 ### 3) Retrieval + Grounded Answering
-- Retrieval method (top-k, filters, reranking):
+- Retrieval method: cosine similarity over TF-IDF vectors (top-k).
 - How citations are built:
-  - citation includes: source, locator (page/section), snippet
+  - citation includes: source, locator (`chunk_<id>`), snippet.
 - Failure behavior:
-  - what happens when retrieval is empty/low confidence
+  - if no chunk clears a minimal score, respond with “I couldn’t find this in the uploaded documents.”
 
 ### 4) Memory System (Selective)
 - What counts as “high-signal” memory:
+  - user preferences, role/occupation, stable facts.
 - What you explicitly do NOT store (PII/secrets/raw transcript):
+  - raw conversation, secrets, or sensitive identifiers.
 - How you decide when to write:
+  - simple regex heuristics (e.g., “I prefer …”, “I am …”) or explicit summaries via CLI.
 - Format written to:
   - `USER_MEMORY.md`
   - `COMPANY_MEMORY.md`
 
 ### 5) Optional: Safe Tooling (Open-Meteo)
-- Tool interface shape:
-- Safety boundaries:
-  - timeouts
-  - restricted imports / sandbox isolation
-  - network access rules (if applicable)
+- Not implemented in this version.
 
 ---
 
 ## Tradeoffs & Next Steps
 - Why this design?
+  - Simple, dependency-free pipeline to make the core RAG + memory behaviors easy to understand.
 - What you would improve with more time:
+  - Add PDF/HTML parsing, stronger embedding retrieval, and a small web UI.
