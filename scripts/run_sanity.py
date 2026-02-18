@@ -27,7 +27,7 @@ def main() -> None:
     index_path = artifacts / "index.json"
     rag.save_index(index, index_path)
 
-    question = "What retrieval method does the demo document describe?"
+    question = "What retrieval scoring strategy does the demo document describe?"
     hits = rag.search(index, question, top_k=3, min_score=0.05)
     answer, citations = rag.build_answer(hits)
     if not citations:

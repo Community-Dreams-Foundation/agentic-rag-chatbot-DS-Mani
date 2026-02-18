@@ -17,24 +17,26 @@ Keep this short (1–2 pages).
 ### 1) Ingestion (Upload → Parse → Chunk)
 - Supported inputs: `.txt`, `.md`, `.pdf` via CLI directory/file paths.
 - Parsing approach: read UTF-8 text directly; PDFs are extracted per page using PyMuPDF.
-- Chunking strategy: split by paragraph, then further split long paragraphs into
-  ~800-character chunks with ~100-character overlap.
+- Chunking strategy: section-aware parsing using headings, then chunk each section into
+  ~800-character pieces with ~100-character overlap.
 - Metadata captured per chunk (recommended):
   - source filename
   - page (if PDF)
   - chunk_id (implicit locator)
 
 ### 2) Indexing / Storage
-- Vector store choice: in-memory TF-IDF vectors computed in Python stdlib.
+- Vector store choice: JSON index with BM25 stats and optional embeddings.
 - Persistence: JSON index saved to `artifacts/index.json`.
-- Optional lexical index (BM25): not implemented (TF-IDF only).
+- Lexical index: BM25 (per-chunk term frequencies + IDF).
+- Semantic index: optional Sentence-Transformers embeddings.
 
 ### 3) Retrieval + Grounded Answering
-- Retrieval method: cosine similarity over TF-IDF vectors (top-k).
+- Retrieval method: hybrid BM25 + embedding similarity (top-k).
+- Reranking: boosts chunks with higher query-term overlap.
 - How citations are built:
-  - citation includes: source, locator (`chunk_<id>`), snippet.
+  - citation includes: source, locator (page/section/chunk), snippet.
 - Failure behavior:
-  - if no chunk clears a minimal score, respond with “I couldn’t find this in the uploaded documents.”
+  - if no chunk clears a minimal score, respond with “I cannot find this in the uploaded documents.”
 
 ### 4) Memory System (Selective)
 - What counts as “high-signal” memory:
@@ -48,7 +50,12 @@ Keep this short (1–2 pages).
   - `COMPANY_MEMORY.md`
 
 ### 5) Optional: Safe Tooling (Open-Meteo)
-- Not implemented in this version.
+- Tool interface shape:
+  - CLI command `python3 -m app.cli weather --lat ... --lon ... --start ... --end ...`
+- Safety boundaries:
+  - date range capped to 31 days
+  - timeout on HTTP request
+  - restricted to Open-Meteo public endpoint
 
 ---
 

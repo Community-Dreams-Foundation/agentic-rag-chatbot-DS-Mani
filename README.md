@@ -46,9 +46,9 @@ You may implement one feature or multiple. Partial implementations are acceptabl
 ---
 
 ## Participant Info (Required)
-- Full Name: TODO
-- Email: TODO
-- GitHub Username: TODO
+- Full Name: Manikanta Reddy Yerolla
+- Email: manireddyyerolla@gmail.com
+- GitHub Username: DS-Mani
 
 ---
 
@@ -248,19 +248,23 @@ Provide exact commands a judge can run.
 python3 -m venv venv
 source venv/bin/activate
 
-# (optional) install PDF support
+# (optional) install PDF + embeddings support
 pip install -r requirements.txt
+# embeddings download the model on first use
 
 # run the required end-to-end sanity flow
 make sanity
 
 # manual CLI usage
 python3 -m app.cli ingest --input sample_docs --index artifacts/index.json
-python3 -m app.cli ask --index artifacts/index.json --question "What retrieval method does the demo document describe?"
+python3 -m app.cli ask --index artifacts/index.json --question "What retrieval scoring strategy does the demo document describe?"
+python3 -m app.cli ask --index artifacts/index.json --question "What retrieval scoring strategy does the demo document describe?" --use-embeddings
 python3 -m app.cli memory --text "I prefer weekly summaries on Mondays."
+python3 -m app.cli weather --lat 37.7749 --lon -122.4194 --start 2024-01-01 --end 2024-01-07
 ```
 
 Supported inputs: `.txt`, `.md`, and `.pdf` (PDF requires `pymupdf`).
+Semantic embeddings are optional and require `sentence-transformers` (model downloads on first use).
 
 ---
 

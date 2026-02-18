@@ -1,13 +1,17 @@
-Agentic RAG Chatbot Demo Document
+# Agentic RAG Chatbot Demo Document
 
-This demo document describes a minimal retrieval-augmented generation (RAG) flow.
-Documents are chunked into roughly 800-character segments with about 100 characters
-of overlap. Each chunk is stored with its source filename and a chunk_id so answers
-can include precise citations.
+## Chunking
+This demo describes a retrieval-augmented generation (RAG) pipeline with section-aware
+chunking. Documents are split into sections using headings, then each section is
+chunked into roughly 800-character pieces with about 100 characters of overlap. Each
+chunk stores a source filename, a section title, and a chunk_id for citations.
 
-Retrieval uses TF-IDF vectors with cosine similarity. The query is tokenized and
-weighted by inverse document frequency, then compared to each chunk vector to pick
-the top matches.
+## Retrieval
+Retrieval uses a hybrid scoring strategy. BM25 provides lexical relevance based on
+query terms, and semantic similarity comes from embeddings. The two signals are
+combined into a hybrid score, then reranked to prioritize chunks with stronger
+query-term alignment.
 
-Citations include the source file, a locator like "chunk_3", and a short snippet
-from the chunk to show exactly where the answer came from.
+## Citations
+Citations include the source file, a locator (page/section/chunk), and a short
+snippet from the chunk to show where the answer came from.
