@@ -7,6 +7,7 @@ const useEmbeddings = document.getElementById("useEmbeddings");
 const topK = document.getElementById("topK");
 const citeK = document.getElementById("citeK");
 const embedModel = document.getElementById("embedModel");
+const showJson = document.getElementById("showJson");
 const questionInput = document.getElementById("questionInput");
 const sendBtn = document.getElementById("sendBtn");
 const messages = document.getElementById("messages");
@@ -99,6 +100,34 @@ function appendMessage(role, text, citations = []) {
   messages.scrollTop = messages.scrollHeight;
 }
 
+async function resolveWeatherLocation(query, country) {
+  if (selectedLocation) {
+    return selectedLocation;
+  }
+  const formData = new FormData();
+  formData.append("query", query);
+  if (country) {
+    formData.append("country", country);
+  }
+  formData.append("limit", "1");
+
+  const res = await fetch("/api/geocode", { method: "POST", body: formData });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || "Geocoding failed");
+  }
+  const results = data.results || [];
+  if (!results.length) {
+    throw new Error("No matching location found.");
+  }
+  const item = results[0];
+  const labelParts = [item.name];
+  if (item.admin1) labelParts.push(item.admin1);
+  if (item.country_code) labelParts.push(item.country_code);
+  const label = labelParts.join(", ");
+  return { ...item, label };
+}
+
 uploadBtn.addEventListener("click", async () => {
   const files = fileInput.files;
   if (!files || files.length === 0) {
@@ -152,7 +181,11 @@ sendBtn.addEventListener("click", async () => {
     if (!res.ok) {
       throw new Error(data.detail || "Request failed");
     }
-    appendMessage("assistant", data.answer, data.citations || []);
+    if (showJson && showJson.checked) {
+      appendMessage("assistant", JSON.stringify(data, null, 2));
+    } else {
+      appendMessage("assistant", data.answer, data.citations || []);
+    }
   } catch (err) {
     appendMessage("assistant", `Error: ${err.message}`);
   }
@@ -171,16 +204,16 @@ weatherBtn.addEventListener("click", async () => {
 
   weatherStatus.textContent = "Fetching weather...";
   const formData = new FormData();
-  if (selectedLocation) {
-    formData.append("lat", selectedLocation.latitude);
-    formData.append("lon", selectedLocation.longitude);
-    formData.append("location_name", selectedLocation.label);
-  } else {
-    formData.append("city", query);
-    if (country) {
-      formData.append("country", country);
-    }
+  let resolved = null;
+  try {
+    resolved = await resolveWeatherLocation(query, country);
+  } catch (err) {
+    weatherStatus.textContent = err.message || "Location lookup failed.";
+    return;
   }
+  formData.append("lat", resolved.latitude);
+  formData.append("lon", resolved.longitude);
+  formData.append("location_name", resolved.label);
   formData.append("start", start);
   formData.append("end", end);
   formData.append("sandbox", weatherSandbox && weatherSandbox.checked ? "docker" : "none");
