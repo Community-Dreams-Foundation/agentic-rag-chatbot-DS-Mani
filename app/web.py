@@ -125,6 +125,7 @@ async def weather_api(
     country: Optional[str] = Form(None),
     lat: Optional[float] = Form(None),
     lon: Optional[float] = Form(None),
+    location_name: Optional[str] = Form(None),
     sandbox_mode: str = Form("none"),
 ) -> dict:
     if sandbox_mode not in ("none", "docker"):
@@ -158,4 +159,19 @@ async def weather_api(
 
     if resolved_name:
         result["location_name"] = resolved_name
+    elif location_name:
+        result["location_name"] = location_name
     return result
+
+
+@app.post("/api/geocode")
+async def geocode_api(
+    city: str = Form(...),
+    country: Optional[str] = Form(None),
+    limit: int = Form(5),
+) -> dict:
+    try:
+        results = geocode.geocode_search(city, country=country, limit=limit)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"results": results}

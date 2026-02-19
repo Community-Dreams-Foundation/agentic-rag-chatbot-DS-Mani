@@ -17,6 +17,8 @@ const weatherEnd = document.getElementById("weatherEnd");
 const weatherSandbox = document.getElementById("weatherSandbox");
 const weatherBtn = document.getElementById("weatherBtn");
 const weatherStatus = document.getElementById("weatherStatus");
+const weatherSearchBtn = document.getElementById("weatherSearchBtn");
+const weatherResults = document.getElementById("weatherResults");
 
 function setTheme(theme) {
   document.body.setAttribute("data-theme", theme);
@@ -48,6 +50,8 @@ setDefaultWeatherDates();
 if (weatherCity && !weatherCity.value) {
   weatherCity.value = "San Francisco";
 }
+
+let selectedLocation = null;
 
 function appendMessage(role, text, citations = []) {
   const wrapper = document.createElement("div");
@@ -151,13 +155,16 @@ weatherBtn.addEventListener("click", async () => {
     weatherStatus.textContent = "Please fill city, start, and end.";
     return;
   }
+  if (!selectedLocation) {
+    weatherStatus.textContent = "Select a location from the list first.";
+    return;
+  }
 
   weatherStatus.textContent = "Fetching weather...";
   const formData = new FormData();
-  formData.append("city", city);
-  if (country) {
-    formData.append("country", country);
-  }
+  formData.append("lat", selectedLocation.latitude);
+  formData.append("lon", selectedLocation.longitude);
+  formData.append("location_name", selectedLocation.label);
   formData.append("start", start);
   formData.append("end", end);
   formData.append("sandbox", weatherSandbox && weatherSandbox.checked ? "docker" : "none");
@@ -185,6 +192,66 @@ weatherBtn.addEventListener("click", async () => {
     const msg = err.message || "Weather request failed";
     weatherStatus.textContent = msg;
     appendMessage("assistant", `Weather error: ${msg}`);
+  }
+});
+
+weatherSearchBtn.addEventListener("click", async () => {
+  if (!weatherCity || !weatherResults) return;
+  const city = weatherCity.value.trim();
+  const country = weatherCountry ? weatherCountry.value.trim() : "";
+  if (!city) {
+    weatherStatus.textContent = "Enter a city first.";
+    return;
+  }
+
+  weatherStatus.textContent = "Searching locations...";
+  selectedLocation = null;
+  weatherResults.innerHTML = "";
+
+  const formData = new FormData();
+  formData.append("city", city);
+  if (country) {
+    formData.append("country", country);
+  }
+  formData.append("limit", "8");
+
+  try {
+    const res = await fetch("/api/geocode", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || "Geocoding failed");
+    }
+
+    const results = data.results || [];
+    if (!results.length) {
+      weatherResults.textContent = "No matches found.";
+      weatherStatus.textContent = "No matches found.";
+      return;
+    }
+
+    results.forEach((item) => {
+      const labelParts = [item.name];
+      if (item.admin1) labelParts.push(item.admin1);
+      if (item.country_code) labelParts.push(item.country_code);
+      const label = labelParts.join(", ");
+
+      const row = document.createElement("div");
+      row.className = "result-item";
+      row.innerHTML = `<strong>${label}</strong><span>${item.latitude}, ${item.longitude}</span>`;
+      row.addEventListener("click", () => {
+        selectedLocation = { ...item, label };
+        Array.from(weatherResults.children).forEach((child) => child.classList.remove("selected"));
+        row.classList.add("selected");
+        weatherStatus.textContent = `Selected: ${label}`;
+      });
+      weatherResults.appendChild(row);
+    });
+
+    weatherStatus.textContent = "Select a location from the list.";
+  } catch (err) {
+    const msg = err.message || "Geocoding failed";
+    weatherStatus.textContent = msg;
+    weatherResults.textContent = msg;
   }
 });
 
