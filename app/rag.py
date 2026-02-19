@@ -11,7 +11,52 @@ from typing import Iterable, Optional
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 ALLOWED_EXTS = {".txt", ".md", ".pdf"}
 EMBED_MODEL_DEFAULT = "all-MiniLM-L6-v2"
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "how",
+    "i",
+    "in",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "this",
+    "to",
+    "was",
+    "what",
+    "when",
+    "where",
+    "who",
+    "why",
+    "with",
+    "you",
+    "your",
+}
 
+
+def detect_intent(query: Optional[str]) -> str:
+    if not query:
+        return "default"
+    q = query.lower()
+    if "summarize" in q or "summary" in q or "main contribution" in q:
+        return "summary"
+    if "assumption" in q or "limitation" in q:
+        return "assumptions"
+    if "numeric" in q or "number" in q or "experimental" in q or "detail" in q:
+        return "numeric"
+    return "default"
 
 def tokenize(text: str) -> list[str]:
     return TOKEN_RE.findall(text.lower())
@@ -278,8 +323,10 @@ def search(
     bm25_weight: float = 0.6,
     embed_weight: float = 0.4,
     rerank_weight: float = 0.2,
+    require_overlap: bool = True,
 ) -> list[dict]:
-    q_tf = Counter(tokenize(query))
+    q_terms = [t for t in tokenize(query) if t not in STOPWORDS]
+    q_tf = Counter(q_terms)
     if not q_tf:
         return []
 
@@ -304,7 +351,13 @@ def search(
         total_weight = bm25_weight if bm25_weight > 0 else 1.0
 
     results: list[tuple[float, dict]] = []
-    q_terms = set(q_tf.keys())
+    q_term_set = set(q_tf.keys())
+    required_overlap = 0
+    if require_overlap:
+        if len(q_term_set) >= 3:
+            required_overlap = 2
+        elif len(q_term_set) >= 1:
+            required_overlap = 1
     for idx, chunk in enumerate(chunks):
         bm25_score = bm25_norm[idx]
         embed_score = embed_norm[idx]
@@ -314,8 +367,12 @@ def search(
             combined = bm25_score
 
         overlap = 0.0
-        if q_terms:
-            overlap = len(q_terms.intersection(chunk.get("tf", {}).keys())) / len(q_terms)
+        overlap_count = 0
+        if q_term_set:
+            overlap_count = len(q_term_set.intersection(chunk.get("tf", {}).keys()))
+            overlap = overlap_count / len(q_term_set)
+        if require_overlap and overlap_count < required_overlap:
+            continue
         combined += rerank_weight * overlap
 
         if combined >= min_score:
@@ -332,32 +389,88 @@ def _slugify(text: Optional[str]) -> str:
     value = re.sub(r"[^a-z0-9]+", "-", value).strip("-")
     return value[:40]
 
+def _split_sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+|\n+", text)
+    return [p.strip() for p in parts if p.strip()]
 
-def build_answer(chunks: list[dict], max_citations: int = 3) -> tuple[str, list[dict]]:
+
+def _format_citation(chunk: dict) -> dict:
+    locator_parts = []
+    if chunk.get("page"):
+        locator_parts.append(f"page_{chunk['page']}")
+    section_slug = _slugify(chunk.get("section"))
+    if section_slug:
+        locator_parts.append(f"section_{section_slug}")
+    locator_parts.append(f"chunk_{chunk['chunk_id']}")
+    return {
+        "source": chunk["source"],
+        "locator": "_".join(locator_parts),
+        "snippet": chunk["text"][:200].strip(),
+    }
+
+
+def _collect_sentences(chunks: list[dict]) -> list[tuple[str, dict]]:
+    collected: list[tuple[str, dict]] = []
+    for chunk in chunks:
+        for sentence in _split_sentences(chunk.get("text", "")):
+            if len(sentence) >= 30:
+                collected.append((sentence, chunk))
+    return collected
+
+
+def _build_bullets(selections: list[tuple[str, dict]], max_items: int = 3) -> tuple[str, list[dict]]:
+    bullets: list[str] = []
+    used_chunks: dict[int, dict] = {}
+    for sentence, chunk in selections:
+        if len(bullets) >= max_items:
+            break
+        cleaned = re.sub(r"^(?:[-•]|o)\s+", "", sentence, flags=re.IGNORECASE)
+        bullets.append(f"- {cleaned}")
+        used_chunks[chunk["chunk_id"]] = chunk
+    if not bullets:
+        return "I cannot find this in the uploaded documents.", []
+    citations = [_format_citation(c) for c in list(used_chunks.values())[:max_items]]
+    return "\n".join(bullets), citations
+
+
+def _numeric_detail(selections: list[tuple[str, dict]]) -> tuple[str, list[dict]]:
+    for sentence, chunk in selections:
+        if re.search(r"\\d", sentence):
+            citations = [_format_citation(chunk)]
+            return sentence, citations
+    return "I cannot find this in the uploaded documents.", []
+
+
+def build_answer(
+    chunks: list[dict],
+    query: Optional[str] = None,
+    max_citations: int = 3,
+) -> tuple[str, list[dict]]:
     if not chunks:
         return (
             "I cannot find this in the uploaded documents.",
             [],
         )
 
+    selections = _collect_sentences(chunks)
+
+    if query:
+        q = query.lower()
+        if "summarize" in q and "bullet" in q:
+            return _build_bullets(selections, max_items=3)
+        if "assumption" in q or "limitation" in q:
+            filtered = [
+                (s, c)
+                for s, c in selections
+                if ("assumption" in s.lower() or "limitation" in s.lower())
+            ]
+            return _build_bullets(filtered, max_items=3)
+        if "numeric" in q or "number" in q or "experimental" in q or "detail" in q:
+            return _numeric_detail(selections)
+
     answer_chunks = [c for c in chunks if len(c.get("text", "")) >= 40]
     if not answer_chunks:
         answer_chunks = chunks
     answer = " ".join(c["text"] for c in answer_chunks[:2]).strip()
-    citations: list[dict] = []
-    for c in chunks[: max(1, max_citations)]:
-        locator_parts = []
-        if c.get("page"):
-            locator_parts.append(f"page_{c['page']}")
-        section_slug = _slugify(c.get("section"))
-        if section_slug:
-            locator_parts.append(f"section_{section_slug}")
-        locator_parts.append(f"chunk_{c['chunk_id']}")
-        citations.append(
-            {
-                "source": c["source"],
-                "locator": "_".join(locator_parts),
-                "snippet": c["text"][:200].strip(),
-            }
-        )
+    citations = [_format_citation(c) for c in chunks[: max(1, max_citations)]]
     return answer, citations

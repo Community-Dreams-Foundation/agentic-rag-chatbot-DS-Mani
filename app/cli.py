@@ -74,14 +74,21 @@ def cmd_ask(args: argparse.Namespace) -> None:
     index = rag.load_index(Path(args.index))
     if args.use_embeddings and not index.get("has_embeddings"):
         print("Embeddings not found in index; falling back to BM25 only.")
+
+    intent = rag.detect_intent(args.question)
+    require_overlap = intent not in ("summary",)
+    min_score = 0.0 if intent == "summary" else 0.1
+
     hits = rag.search(
         index,
         args.question,
         top_k=args.top_k,
+        min_score=min_score,
         use_embeddings=args.use_embeddings,
         embed_model=args.embed_model,
+        require_overlap=require_overlap,
     )
-    answer, citations = rag.build_answer(hits)
+    answer, citations = rag.build_answer(hits, query=args.question)
     if args.json:
         print(json.dumps({"question": args.question, "answer": answer, "citations": citations}, indent=2))
         return
@@ -124,8 +131,19 @@ def cmd_demo(args: argparse.Namespace) -> None:
         raise SystemExit("No supported files found. Use .txt, .md, or .pdf")
     index = rag.build_index(files, use_embeddings=args.use_embeddings, embed_model=args.embed_model)
     rag.save_index(index, Path(args.index))
-    hits = rag.search(index, args.question, top_k=3, use_embeddings=args.use_embeddings, embed_model=args.embed_model)
-    answer, citations = rag.build_answer(hits)
+    intent = rag.detect_intent(args.question)
+    require_overlap = intent not in ("summary",)
+    min_score = 0.0 if intent == "summary" else 0.1
+    hits = rag.search(
+        index,
+        args.question,
+        top_k=3,
+        min_score=min_score,
+        use_embeddings=args.use_embeddings,
+        embed_model=args.embed_model,
+        require_overlap=require_overlap,
+    )
+    answer, citations = rag.build_answer(hits, query=args.question)
     print("Answer:")
     print(answer)
     if citations:

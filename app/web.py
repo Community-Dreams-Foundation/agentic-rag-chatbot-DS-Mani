@@ -97,14 +97,19 @@ async def ask(
     if index is None:
         raise HTTPException(status_code=400, detail="No index found. Upload files first.")
 
+    intent = rag.detect_intent(question)
+    require_overlap = intent not in ("summary",)
+    min_score = 0.0 if intent == "summary" else 0.1
     hits = rag.search(
         index,
         question,
         top_k=top_k,
+        min_score=min_score,
         use_embeddings=use_embeddings,
         embed_model=embed_model,
+        require_overlap=require_overlap,
     )
-    answer, citations = rag.build_answer(hits, max_citations=citations_k)
+    answer, citations = rag.build_answer(hits, query=question, max_citations=citations_k)
     return {
         "question": question,
         "answer": answer,

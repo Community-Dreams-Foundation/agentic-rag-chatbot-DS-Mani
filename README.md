@@ -263,7 +263,7 @@ python3 -m app.cli memory --text "I prefer weekly summaries on Mondays."
 python3 -m app.cli weather --lat 37.7749 --lon -122.4194 --start 2024-01-01 --end 2024-01-07
 
 # web UI (ChatGPT-style)
-uvicorn app.web:app --reload
+python3 scripts/run_ui.py
 # open http://127.0.0.1:8000
 ```
 

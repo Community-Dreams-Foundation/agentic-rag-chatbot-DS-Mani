@@ -29,7 +29,7 @@ def main() -> None:
 
     question = "What retrieval scoring strategy does the demo document describe?"
     hits = rag.search(index, question, top_k=3, min_score=0.05)
-    answer, citations = rag.build_answer(hits)
+    answer, citations = rag.build_answer(hits, query=question)
     if not citations:
         raise SystemExit("Sanity failed: no citations produced. Check sample docs or retrieval.")
 
