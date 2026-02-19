@@ -57,6 +57,10 @@ Keep this short (1–2 pages).
   - timeout on HTTP request
   - restricted to Open-Meteo public endpoint
 
+### 6) UI Layer (Optional)
+- FastAPI web server with a simple ChatGPT-style interface.
+- Upload files, ask questions, and view citations in the browser.
+
 ---
 
 ## Tradeoffs & Next Steps

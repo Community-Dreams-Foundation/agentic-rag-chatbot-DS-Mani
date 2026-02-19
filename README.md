@@ -261,6 +261,10 @@ python3 -m app.cli ask --index artifacts/index.json --question "What retrieval s
 python3 -m app.cli ask --index artifacts/index.json --question "What retrieval scoring strategy does the demo document describe?" --use-embeddings
 python3 -m app.cli memory --text "I prefer weekly summaries on Mondays."
 python3 -m app.cli weather --lat 37.7749 --lon -122.4194 --start 2024-01-01 --end 2024-01-07
+
+# web UI (ChatGPT-style)
+uvicorn app.web:app --reload
+# open http://127.0.0.1:8000
 ```
 
 Supported inputs: `.txt`, `.md`, and `.pdf` (PDF requires `pymupdf`).

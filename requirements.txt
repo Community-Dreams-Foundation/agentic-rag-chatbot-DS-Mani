@@ -1,2 +1,5 @@
 pymupdf
 sentence-transformers
+fastapi
+uvicorn
+python-multipart

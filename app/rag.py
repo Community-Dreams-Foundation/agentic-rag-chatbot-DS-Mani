@@ -333,7 +333,7 @@ def _slugify(text: Optional[str]) -> str:
     return value[:40]
 
 
-def build_answer(chunks: list[dict]) -> tuple[str, list[dict]]:
+def build_answer(chunks: list[dict], max_citations: int = 3) -> tuple[str, list[dict]]:
     if not chunks:
         return (
             "I cannot find this in the uploaded documents.",
@@ -345,7 +345,7 @@ def build_answer(chunks: list[dict]) -> tuple[str, list[dict]]:
         answer_chunks = chunks
     answer = " ".join(c["text"] for c in answer_chunks[:2]).strip()
     citations: list[dict] = []
-    for c in chunks[:3]:
+    for c in chunks[: max(1, max_citations)]:
         locator_parts = []
         if c.get("page"):
             locator_parts.append(f"page_{c['page']}")
