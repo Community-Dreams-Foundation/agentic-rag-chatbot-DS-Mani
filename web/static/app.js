@@ -10,6 +10,7 @@ const embedModel = document.getElementById("embedModel");
 const questionInput = document.getElementById("questionInput");
 const sendBtn = document.getElementById("sendBtn");
 const messages = document.getElementById("messages");
+const weatherState = document.getElementById("weatherState");
 const weatherCity = document.getElementById("weatherCity");
 const weatherCountry = document.getElementById("weatherCountry");
 const weatherStart = document.getElementById("weatherStart");
@@ -47,11 +48,23 @@ function setDefaultWeatherDates() {
 
 setDefaultWeatherDates();
 
+if (weatherState && !weatherState.value) {
+  weatherState.value = "California";
+}
 if (weatherCity && !weatherCity.value) {
-  weatherCity.value = "San Francisco";
+  weatherCity.value = "";
 }
 
 let selectedLocation = null;
+
+function buildLocationQuery() {
+  const state = weatherState ? weatherState.value.trim() : "";
+  const city = weatherCity ? weatherCity.value.trim() : "";
+  if (city && state) {
+    return `${city}, ${state}`;
+  }
+  return city || state;
+}
 
 function appendMessage(role, text, citations = []) {
   const wrapper = document.createElement("div");
@@ -146,25 +159,28 @@ sendBtn.addEventListener("click", async () => {
 });
 
 weatherBtn.addEventListener("click", async () => {
-  if (!weatherCity || !weatherStart || !weatherEnd) return;
-  const city = weatherCity.value.trim();
+  if (!weatherStart || !weatherEnd) return;
+  const query = buildLocationQuery();
   const country = weatherCountry ? weatherCountry.value.trim() : "";
   const start = weatherStart.value.trim();
   const end = weatherEnd.value.trim();
-  if (!city || !start || !end) {
-    weatherStatus.textContent = "Please fill city, start, and end.";
-    return;
-  }
-  if (!selectedLocation) {
-    weatherStatus.textContent = "Select a location from the list first.";
+  if (!query || !start || !end) {
+    weatherStatus.textContent = "Please fill state/city, start, and end.";
     return;
   }
 
   weatherStatus.textContent = "Fetching weather...";
   const formData = new FormData();
-  formData.append("lat", selectedLocation.latitude);
-  formData.append("lon", selectedLocation.longitude);
-  formData.append("location_name", selectedLocation.label);
+  if (selectedLocation) {
+    formData.append("lat", selectedLocation.latitude);
+    formData.append("lon", selectedLocation.longitude);
+    formData.append("location_name", selectedLocation.label);
+  } else {
+    formData.append("city", query);
+    if (country) {
+      formData.append("country", country);
+    }
+  }
   formData.append("start", start);
   formData.append("end", end);
   formData.append("sandbox", weatherSandbox && weatherSandbox.checked ? "docker" : "none");
@@ -196,11 +212,11 @@ weatherBtn.addEventListener("click", async () => {
 });
 
 weatherSearchBtn.addEventListener("click", async () => {
-  if (!weatherCity || !weatherResults) return;
-  const city = weatherCity.value.trim();
+  if (!weatherResults) return;
+  const query = buildLocationQuery();
   const country = weatherCountry ? weatherCountry.value.trim() : "";
-  if (!city) {
-    weatherStatus.textContent = "Enter a city first.";
+  if (!query) {
+    weatherStatus.textContent = "Enter a state or city first.";
     return;
   }
 
@@ -209,7 +225,7 @@ weatherSearchBtn.addEventListener("click", async () => {
   weatherResults.innerHTML = "";
 
   const formData = new FormData();
-  formData.append("city", city);
+  formData.append("query", query);
   if (country) {
     formData.append("country", country);
   }

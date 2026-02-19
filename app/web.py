@@ -166,12 +166,12 @@ async def weather_api(
 
 @app.post("/api/geocode")
 async def geocode_api(
-    city: str = Form(...),
+    query: str = Form(...),
     country: Optional[str] = Form(None),
     limit: int = Form(5),
 ) -> dict:
     try:
-        results = geocode.geocode_search(city, country=country, limit=limit)
+        results = geocode.geocode_search(query, country=country, limit=limit)
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"results": results}
