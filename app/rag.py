@@ -12,6 +12,36 @@ TOKEN_RE = re.compile(r"[a-z0-9]+")
 ALLOWED_EXTS = {".txt", ".md", ".pdf"}
 EMBED_MODEL_DEFAULT = "all-MiniLM-L6-v2"
 MATH_SYMBOLS = set("=+-/*^_∑∫≤≥≈≠→←∞√·×÷")
+SKIP_SECTION_RE = re.compile(r"\b(references|bibliography|acknowledg|appendix)\b", re.IGNORECASE)
+NUMERIC_KEYWORDS = {
+    "accuracy",
+    "acc",
+    "bleu",
+    "f1",
+    "precision",
+    "recall",
+    "auc",
+    "loss",
+    "rate",
+    "dropout",
+    "epoch",
+    "epochs",
+    "batch",
+    "learning",
+    "lr",
+    "rank",
+    "parameter",
+    "parameters",
+    "score",
+    "scores",
+    "shot",
+    "shots",
+    "top-k",
+    "gpu",
+    "gpus",
+    "percent",
+    "percentage",
+}
 STOPWORDS = {
     "a",
     "an",
@@ -61,6 +91,13 @@ def detect_intent(query: Optional[str]) -> str:
 
 def tokenize(text: str) -> list[str]:
     return TOKEN_RE.findall(text.lower())
+
+
+def _expand_terms(terms: list[str]) -> list[str]:
+    expanded = set(terms)
+    for i in range(len(terms) - 1):
+        expanded.add(terms[i] + terms[i + 1])
+    return list(expanded)
 
 
 def _get_tokenizer():
@@ -288,6 +325,10 @@ def _normalize_heading(line: str) -> str:
     return text or "Section"
 
 
+def _is_noise_section(title: str) -> bool:
+    return bool(SKIP_SECTION_RE.search(title or ""))
+
+
 def split_sections(text: str, default_section: str = "Document") -> list[dict]:
     lines = text.splitlines()
     sections: list[dict] = []
@@ -298,14 +339,16 @@ def split_sections(text: str, default_section: str = "Document") -> list[dict]:
         line = raw.strip()
         if _is_heading(line):
             if buffer:
-                sections.append({"section": current_title, "text": "\n".join(buffer).strip()})
+                if not _is_noise_section(current_title):
+                    sections.append({"section": current_title, "text": "\n".join(buffer).strip()})
                 buffer = []
             current_title = _normalize_heading(line)
         else:
             buffer.append(raw)
 
     if buffer:
-        sections.append({"section": current_title, "text": "\n".join(buffer).strip()})
+        if not _is_noise_section(current_title):
+            sections.append({"section": current_title, "text": "\n".join(buffer).strip()})
 
     if not sections and text.strip():
         sections.append({"section": default_section, "text": text.strip()})
@@ -462,7 +505,8 @@ def search(
     require_overlap: bool = True,
     min_overlap_ratio: float = 0.34,
 ) -> list[dict]:
-    q_terms = [t for t in tokenize(query) if t not in STOPWORDS]
+    base_terms = [t for t in tokenize(query) if t not in STOPWORDS]
+    q_terms = _expand_terms(base_terms)
     q_tf = Counter(q_terms)
     if not q_tf:
         return []
@@ -556,9 +600,61 @@ def _collect_sentences(chunks: list[dict]) -> list[tuple[str, dict]]:
     collected: list[tuple[str, dict]] = []
     for chunk in chunks:
         for sentence in _split_sentences(chunk.get("text", "")):
-            if len(sentence) >= 30:
+            if _is_good_sentence(sentence):
                 collected.append((sentence, chunk))
     return collected
+
+
+def _is_good_sentence(sentence: str) -> bool:
+    s = sentence.strip()
+    if len(s) < 40:
+        return False
+    words = s.split()
+    if len(words) < 6:
+        return False
+    if not re.search(r"[.!?]$", s) and len(s) < 80:
+        return False
+    if s.lower().endswith(("for", "of", "and", "to")):
+        return False
+    return True
+
+
+def _sentence_tokens(sentence: str) -> set[str]:
+    return set(tokenize(sentence))
+
+
+def _filter_by_query_terms(
+    selections: list[tuple[str, dict]], query_terms: set[str]
+) -> list[tuple[str, dict]]:
+    if not query_terms:
+        return []
+    filtered: list[tuple[str, dict]] = []
+    for sentence, chunk in selections:
+        if _sentence_tokens(sentence).intersection(query_terms):
+            filtered.append((sentence, chunk))
+    return filtered
+
+
+def _best_sentence(
+    selections: list[tuple[str, dict]], query_terms: set[str]
+) -> Optional[tuple[str, dict]]:
+    best: Optional[tuple[str, dict]] = None
+    best_score = -1.0
+    if not query_terms:
+        return None
+    for sentence, chunk in selections:
+        tokens = _sentence_tokens(sentence)
+        overlap = len(tokens.intersection(query_terms))
+        if overlap == 0:
+            continue
+        ratio = overlap / len(query_terms)
+        if len(query_terms) >= 2 and ratio < 0.5:
+            continue
+        score = ratio * 10 + min(len(sentence), 240) / 240
+        if score > best_score:
+            best_score = score
+            best = (sentence, chunk)
+    return best
 
 
 def _build_bullets(selections: list[tuple[str, dict]], max_items: int = 3) -> tuple[str, list[dict]]:
@@ -578,7 +674,13 @@ def _build_bullets(selections: list[tuple[str, dict]], max_items: int = 3) -> tu
 
 def _numeric_detail(selections: list[tuple[str, dict]]) -> tuple[str, list[dict]]:
     for sentence, chunk in selections:
-        if re.search(r"\\d", sentence):
+        if not re.search(r"\\d", sentence):
+            continue
+        lower = sentence.lower()
+        if "%" in sentence or "e-" in lower or "×" in sentence:
+            citations = [_format_citation(chunk)]
+            return sentence, citations
+        if any(key in lower for key in NUMERIC_KEYWORDS):
             citations = [_format_citation(chunk)]
             return sentence, citations
     return "I cannot find this in the uploaded documents.", []
@@ -596,6 +698,8 @@ def build_answer(
         )
 
     selections = _collect_sentences(chunks)
+    base_terms = [t for t in tokenize(query or "") if t not in STOPWORDS]
+    query_terms = set(_expand_terms(base_terms))
 
     if query:
         q = query.lower()
@@ -611,9 +715,10 @@ def build_answer(
         if "numeric" in q or "number" in q or "experimental" in q or "detail" in q:
             return _numeric_detail(selections)
 
-    answer_chunks = [c for c in chunks if len(c.get("text", "")) >= 40]
-    if not answer_chunks:
-        answer_chunks = chunks
-    answer = " ".join(c["text"] for c in answer_chunks[:2]).strip()
-    citations = [_format_citation(c) for c in chunks[: max(1, max_citations)]]
+    best = _best_sentence(selections, query_terms)
+    if not best:
+        return "I cannot find this in the uploaded documents.", []
+    top_sentence, top_chunk = best
+    answer = re.sub(r"\s+", " ", top_sentence).strip()
+    citations = [_format_citation(top_chunk)]
     return answer, citations
