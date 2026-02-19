@@ -56,7 +56,7 @@ You may implement one feature or multiple. Partial implementations are acceptabl
 ## Participant Info (Required)
 - Full Name: Manikanta Reddy Yerolla
 - Email: manireddyyerolla@gmail.com
-- GitHub Username: DS-Mani
+- GitHub Username: DS-MANI
 
 ---
 
@@ -172,7 +172,7 @@ Add your video link here:
 
 ## Video Walkthrough
 
-PASTE YOUR LINK HERE
+https://drive.google.com/file/d/1vAU_QIjuA62RIbDfD4Yk_4t69irGTGi4/view?usp=sharing
 
 ## 4) Important
 Submissions missing the Participant Info block may be deprioritized during review.
