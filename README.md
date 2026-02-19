@@ -11,6 +11,14 @@ You may implement one feature or multiple. Partial implementations are acceptabl
 
 ---
 
+## What I Built (Implementation Summary)
+- **RAG pipeline (core):** ingests `.pdf`, `.txt`, `.md`; PyMuPDF parsing with header/footer cleanup; section-aware chunking with token windows + overlap and math preservation; hybrid retrieval (BM25 + optional embeddings); strict grounding with refusal on missing evidence; citations with `source`, `locator`, and snippet.
+- **Memory (core-ish):** selective writes to `USER_MEMORY.md` and `COMPANY_MEMORY.md`; high-signal facts only.
+- **Weather tool (optional):** Open-Meteo analysis with 31-day cap + timeouts; historical + forecast support; optional Docker sandbox (`--sandbox docker`); UI weather panel with geocoding.
+- **UI:** FastAPI backend + simple chat UI; upload/index/ask with citations; weather panel; JSON response toggle.
+
+---
+
 ## Repository Guide (What each file is for)
 
 - Root `README.md` is the submission README (Quick Start + Video link goes here).
