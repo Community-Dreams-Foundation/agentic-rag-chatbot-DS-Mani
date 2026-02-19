@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agentic RAG Chatbot</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body data-theme="light">
+  <header class="topbar">
+    <div class="title">Agentic RAG Chatbot</div>
+    <button id="themeToggle" class="toggle" aria-label="Toggle theme">Light</button>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h3>Upload</h3>
+      <input id="fileInput" type="file" multiple accept=".txt,.md,.pdf" />
+      <label class="checkbox">
+        <input type="checkbox" id="useEmbeddings" />
+        Use embeddings
+      </label>
+      <button id="uploadBtn" class="primary">Build Index</button>
+      <div id="uploadStatus" class="status"></div>
+    </section>
+
+    <section class="panel">
+      <h3>Settings</h3>
+      <label>
+        Top-K retrieval
+        <input id="topK" type="number" min="1" max="10" value="4" />
+      </label>
+      <label>
+        Citations per answer
+        <input id="citeK" type="number" min="1" max="10" value="3" />
+      </label>
+      <label>
+        Embedding model
+        <input id="embedModel" type="text" value="all-MiniLM-L6-v2" />
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="showJson" />
+        Show JSON response
+      </label>
+    </section>
+
+    <section class="panel">
+      <h3>Weather</h3>
+      <label>
+        State / Region
+        <input id="weatherState" type="text" placeholder="California" />
+      </label>
+      <label>
+        City (optional)
+        <input id="weatherCity" type="text" placeholder="San Francisco" />
+      </label>
+      <label>
+        Country code (optional)
+        <input id="weatherCountry" type="text" placeholder="US" />
+      </label>
+      <button id="weatherSearchBtn" class="secondary">Find locations</button>
+      <div id="weatherResults" class="results"></div>
+      <label>
+        Start date
+        <input id="weatherStart" type="date" />
+      </label>
+      <label>
+        End date
+        <input id="weatherEnd" type="date" />
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="weatherSandbox" />
+        Use Docker sandbox
+      </label>
+      <button id="weatherBtn" class="primary">Run Weather</button>
+      <div id="weatherStatus" class="status"></div>
+    </section>
+
+    <section class="panel">
+      <h3>Indexed Files</h3>
+      <ul id="fileList" class="file-list"></ul>
+    </section>
+
+    <section class="chat panel">
+      <div id="messages" class="messages">
+        <div class="message assistant">
+          <div class="bubble">
+            Upload documents, then ask a question. I will answer only using retrieved chunks and show citations.
+          </div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <textarea id="questionInput" rows="2" placeholder="Ask a question about your documents..."></textarea>
+        <button id="sendBtn" class="primary">Send</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

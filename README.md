@@ -46,9 +46,9 @@ You may implement one feature or multiple. Partial implementations are acceptabl
 ---
 
 ## Participant Info (Required)
-- Full Name:
-- Email:
-- GitHub Username:
+- Full Name: Manikanta Reddy Yerolla
+- Email: manireddyyerolla@gmail.com
+- GitHub Username: DS-Mani
 
 ---
 
@@ -107,6 +107,9 @@ The Chatbot should:
 - Return a clear explanation of findings
 
 We care about **safe execution boundaries + clean tool interface**, not perfect data science.
+
+This implementation supports a Docker-based sandbox via:
+`python3 -m app.cli weather ... --sandbox docker` (requires Docker installed and running).
 
 ---
 
@@ -243,13 +246,34 @@ These are optional enhancements. They are not required, but can earn bonus point
 
 Provide exact commands a judge can run.
 
-Example (replace with your real commands):
-
 ```text
-# install dependencies
-# run the app
-# open UI or run CLI
+# (optional) create and activate a venv
+python3 -m venv venv
+source venv/bin/activate
+
+# (optional) install PDF + embeddings support
+pip install -r requirements.txt
+# embeddings download the model on first use
+
+# run the required end-to-end sanity flow
+make sanity
+
+# manual CLI usage
+python3 -m app.cli ingest --input sample_docs --index artifacts/index.json
+python3 -m app.cli ask --index artifacts/index.json --question "What retrieval scoring strategy does the demo document describe?"
+python3 -m app.cli ask --index artifacts/index.json --question "What retrieval scoring strategy does the demo document describe?" --use-embeddings
+python3 -m app.cli memory --text "I prefer weekly summaries on Mondays."
+python3 -m app.cli weather --lat 37.7749 --lon -122.4194 --start 2024-01-01 --end 2024-01-07
+# run weather in a Docker sandbox (requires Docker)
+python3 -m app.cli weather --lat 37.7749 --lon -122.4194 --start 2024-01-01 --end 2024-01-07 --sandbox docker
+
+# web UI (ChatGPT-style)
+python3 scripts/run_ui.py
+# open http://127.0.0.1:8000
 ```
+
+Supported inputs: `.txt`, `.md`, and `.pdf` (PDF requires `pymupdf`).
+Semantic embeddings are optional and require `sentence-transformers` (model downloads on first use).
 
 ---
 
