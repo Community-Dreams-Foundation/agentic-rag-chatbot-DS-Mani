@@ -55,10 +55,12 @@ Keep this short (1–2 pages).
 ### 5) Optional: Safe Tooling (Open-Meteo)
 - Tool interface shape:
   - CLI command `python3 -m app.cli weather --lat ... --lon ... --start ... --end ...`
+  - Docker sandbox option: `--sandbox docker` (runs the analysis inside a container)
 - Safety boundaries:
   - date range capped to 31 days
   - timeout on HTTP request
   - restricted to Open-Meteo public endpoint
+  - Docker run flags: read-only root FS, capped memory/CPU, no new privileges, tmpfs
 
 ### 6) UI Layer (Optional)
 - FastAPI web server with a simple ChatGPT-style interface.

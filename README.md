@@ -108,6 +108,9 @@ The Chatbot should:
 
 We care about **safe execution boundaries + clean tool interface**, not perfect data science.
 
+This implementation supports a Docker-based sandbox via:
+`python3 -m app.cli weather ... --sandbox docker` (requires Docker installed and running).
+
 ---
 
 ## Deliverables (Required)
@@ -261,6 +264,8 @@ python3 -m app.cli ask --index artifacts/index.json --question "What retrieval s
 python3 -m app.cli ask --index artifacts/index.json --question "What retrieval scoring strategy does the demo document describe?" --use-embeddings
 python3 -m app.cli memory --text "I prefer weekly summaries on Mondays."
 python3 -m app.cli weather --lat 37.7749 --lon -122.4194 --start 2024-01-01 --end 2024-01-07
+# run weather in a Docker sandbox (requires Docker)
+python3 -m app.cli weather --lat 37.7749 --lon -122.4194 --start 2024-01-01 --end 2024-01-07 --sandbox docker
 
 # web UI (ChatGPT-style)
 python3 scripts/run_ui.py

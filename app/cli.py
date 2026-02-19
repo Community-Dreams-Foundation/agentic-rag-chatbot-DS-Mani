@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from app import memory, rag, weather
+from app import memory, rag, sandbox, weather
 
 
 def _parse_args() -> argparse.Namespace:
@@ -56,6 +56,12 @@ def _parse_args() -> argparse.Namespace:
     weather_cmd.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
     weather_cmd.add_argument("--end", required=True, help="End date (YYYY-MM-DD)")
     weather_cmd.add_argument("--json", action="store_true", help="Output JSON")
+    weather_cmd.add_argument(
+        "--sandbox",
+        choices=["none", "docker"],
+        default="none",
+        help="Run weather analysis inside a sandbox (docker)",
+    )
 
     return parser.parse_args()
 
@@ -153,7 +159,13 @@ def cmd_demo(args: argparse.Namespace) -> None:
 
 
 def cmd_weather(args: argparse.Namespace) -> None:
-    result = weather.run_weather_analysis(args.lat, args.lon, args.start, args.end)
+    if args.sandbox == "docker":
+        try:
+            result = sandbox.run_weather_in_docker(args.lat, args.lon, args.start, args.end).payload
+        except sandbox.SandboxError as exc:
+            raise SystemExit(f"Sandbox error: {exc}") from exc
+    else:
+        result = weather.run_weather_analysis(args.lat, args.lon, args.start, args.end)
     if args.json:
         print(json.dumps(result, indent=2))
         return
