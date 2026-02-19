@@ -17,8 +17,11 @@ Keep this short (1–2 pages).
 ### 1) Ingestion (Upload → Parse → Chunk)
 - Supported inputs: `.txt`, `.md`, `.pdf` via CLI directory/file paths.
 - Parsing approach: read UTF-8 text directly; PDFs are extracted per page using PyMuPDF.
-- Chunking strategy: section-aware parsing using headings, then chunk each section into
-  ~800-character pieces with ~100-character overlap.
+- Noise cleanup: drop repeated header/footer lines across pages.
+- Chunking strategy:
+  - Section-aware parsing using headings.
+  - Within each section: ~600-token chunks with ~100-token overlap.
+  - Preserve math-heavy blocks (don’t split mid-equation when possible).
 - Metadata captured per chunk (recommended):
   - source filename
   - page (if PDF)

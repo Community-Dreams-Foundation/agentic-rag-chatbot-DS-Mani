@@ -11,6 +11,7 @@ from typing import Iterable, Optional
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 ALLOWED_EXTS = {".txt", ".md", ".pdf"}
 EMBED_MODEL_DEFAULT = "all-MiniLM-L6-v2"
+MATH_SYMBOLS = set("=+-/*^_∑∫≤≥≈≠→←∞√·×÷")
 STOPWORDS = {
     "a",
     "an",
@@ -62,6 +63,171 @@ def tokenize(text: str) -> list[str]:
     return TOKEN_RE.findall(text.lower())
 
 
+def _get_tokenizer():
+    try:
+        import tiktoken  # type: ignore
+    except Exception:
+        return None
+    try:
+        return tiktoken.get_encoding("cl100k_base")
+    except Exception:
+        return None
+
+
+def _token_count(text: str) -> int:
+    encoder = _get_tokenizer()
+    if encoder:
+        return len(encoder.encode(text))
+    # Fallback approximation if tiktoken isn't installed
+    return max(1, len(text.split()))
+
+
+def _clean_pdf_pages(pages: list[dict]) -> list[dict]:
+    if len(pages) < 2:
+        return pages
+
+    header_lines = 2
+    footer_lines = 2
+    counts: Counter[str] = Counter()
+    page_lines: list[list[str]] = []
+
+    for page in pages:
+        lines = [ln.strip() for ln in page.get("text", "").splitlines() if ln.strip()]
+        page_lines.append(lines)
+        candidates = []
+        if lines:
+            candidates.extend(lines[:header_lines])
+            candidates.extend(lines[-footer_lines:])
+        for line in candidates:
+            counts[line] += 1
+
+    threshold = max(2, int(len(pages) * 0.6))
+    drop_lines = {line for line, c in counts.items() if c >= threshold and len(line) <= 120}
+
+    cleaned: list[dict] = []
+    for page, lines in zip(pages, page_lines):
+        cleaned_lines = [ln for ln in lines if ln not in drop_lines]
+        cleaned.append({"page": page.get("page"), "text": "\n".join(cleaned_lines)})
+    return cleaned
+
+
+def _is_math_block(text: str) -> bool:
+    stripped = text.strip()
+    if not stripped:
+        return False
+    math_chars = sum(1 for ch in stripped if ch in MATH_SYMBOLS)
+    non_alnum = sum(1 for ch in stripped if not ch.isalnum() and not ch.isspace())
+    ratio = non_alnum / max(1, len(stripped))
+    if math_chars >= 3 or ratio > 0.3:
+        return True
+    if re.search(r"\\[a-zA-Z]+", stripped):
+        return True
+    if re.search(r"\b\d+\s*[=<>]\s*\d+", stripped):
+        return True
+    return False
+
+
+def _split_paragraphs(text: str) -> list[str]:
+    return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+
+
+def _split_into_blocks(text: str) -> list[dict]:
+    blocks: list[dict] = []
+    for para in _split_paragraphs(text):
+        blocks.append({"text": para, "is_math": _is_math_block(para)})
+    return blocks
+
+
+def _split_units_by_tokens(units: list[str], max_tokens: int) -> list[str]:
+    chunks: list[str] = []
+    current: list[str] = []
+    current_tokens = 0
+    for unit in units:
+        unit_tokens = _token_count(unit)
+        if unit_tokens > max_tokens:
+            words = unit.split()
+            sub: list[str] = []
+            sub_tokens = 0
+            for word in words:
+                wt = _token_count(word)
+                if sub and sub_tokens + wt > max_tokens:
+                    chunks.append(" ".join(sub))
+                    sub = []
+                    sub_tokens = 0
+                sub.append(word)
+                sub_tokens += wt
+            if sub:
+                chunks.append(" ".join(sub))
+            continue
+
+        if current and current_tokens + unit_tokens > max_tokens:
+            chunks.append(" ".join(current).strip())
+            current = []
+            current_tokens = 0
+        current.append(unit)
+        current_tokens += unit_tokens
+
+    if current:
+        chunks.append(" ".join(current).strip())
+    return chunks
+
+
+def _split_large_block(text: str, max_tokens: int, is_math: bool) -> list[str]:
+    if _token_count(text) <= max_tokens:
+        return [text]
+    if is_math:
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        return _split_units_by_tokens(lines, max_tokens)
+    sentences = _split_sentences(text)
+    return _split_units_by_tokens(sentences, max_tokens)
+
+
+def _chunk_blocks(blocks: list[dict], max_tokens: int, overlap_tokens: int) -> list[str]:
+    chunks: list[str] = []
+    current_blocks: list[dict] = []
+    current_tokens = 0
+
+    def finalize_chunk() -> None:
+        nonlocal current_blocks, current_tokens
+        if current_blocks:
+            chunks.append("\n\n".join(b["text"] for b in current_blocks).strip())
+        if overlap_tokens > 0:
+            overlap_blocks: list[dict] = []
+            overlap_count = 0
+            for b in reversed(current_blocks):
+                bt = _token_count(b["text"])
+                if overlap_count + bt > overlap_tokens:
+                    break
+                overlap_blocks.insert(0, b)
+                overlap_count += bt
+            current_blocks = overlap_blocks
+            current_tokens = overlap_count
+        else:
+            current_blocks = []
+            current_tokens = 0
+
+    for block in blocks:
+        bt = _token_count(block["text"])
+        if current_blocks and current_tokens + bt > max_tokens:
+            finalize_chunk()
+        current_blocks.append(block)
+        current_tokens += bt
+
+    if current_blocks:
+        chunks.append("\n\n".join(b["text"] for b in current_blocks).strip())
+
+    return chunks
+
+
+def chunk_text(text: str, max_tokens: int = 600, overlap_tokens: int = 100) -> list[str]:
+    raw_blocks = _split_into_blocks(text)
+    blocks: list[dict] = []
+    for block in raw_blocks:
+        parts = _split_large_block(block["text"], max_tokens, block["is_math"])
+        for part in parts:
+            blocks.append({"text": part, "is_math": block["is_math"]})
+    return _chunk_blocks(blocks, max_tokens, overlap_tokens)
+
 def collect_input_files(paths: Iterable[Path]) -> list[Path]:
     files: list[Path] = []
     for p in paths:
@@ -95,7 +261,8 @@ def _extract_pdf_pages(path: Path) -> list[dict]:
 
 def _read_document(path: Path) -> list[dict]:
     if path.suffix.lower() == ".pdf":
-        return _extract_pdf_pages(path)
+        pages = _extract_pdf_pages(path)
+        return _clean_pdf_pages(pages)
     text = path.read_text(encoding="utf-8", errors="ignore")
     return [{"page": None, "text": text}]
 
@@ -146,45 +313,6 @@ def split_sections(text: str, default_section: str = "Document") -> list[dict]:
     return sections
 
 
-def _split_paragraphs(text: str) -> list[str]:
-    return [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-
-
-def _chunk_long_paragraph(text: str, max_chars: int, overlap: int) -> list[str]:
-    if len(text) <= max_chars:
-        return [text]
-    words = text.split()
-    chunks: list[str] = []
-    start = 0
-    overlap_words = max(0, overlap // 6)
-    while start < len(words):
-        current: list[str] = []
-        end = start
-        while end < len(words):
-            candidate = " ".join(current + [words[end]])
-            if len(candidate) > max_chars:
-                break
-            current.append(words[end])
-            end += 1
-        if not current:
-            current = [words[start]]
-            end = start + 1
-        chunks.append(" ".join(current))
-        if end >= len(words):
-            break
-        effective_overlap = 0
-        if overlap_words > 0:
-            effective_overlap = min(overlap_words, max(0, len(current) - 1))
-        start = end - effective_overlap
-    return chunks
-
-
-def chunk_text(text: str, max_chars: int = 800, overlap: int = 100) -> list[str]:
-    chunks: list[str] = []
-    for para in _split_paragraphs(text):
-        chunks.extend(_chunk_long_paragraph(para, max_chars=max_chars, overlap=overlap))
-    return chunks
-
 
 def _load_embedder(model_name: str):
     try:
@@ -203,8 +331,8 @@ def _embed_texts(model, texts: list[str]) -> list[list[float]]:
 
 def build_index(
     files: Iterable[Path],
-    max_chars: int = 800,
-    overlap: int = 100,
+    max_tokens: int = 600,
+    overlap_tokens: int = 100,
     use_embeddings: bool = False,
     embed_model: str = EMBED_MODEL_DEFAULT,
 ) -> dict:
@@ -223,7 +351,11 @@ def build_index(
                 section_text = section.get("text", "").strip()
                 if not section_text:
                     continue
-                for chunk_text_item in chunk_text(section_text, max_chars=max_chars, overlap=overlap):
+                for chunk_text_item in chunk_text(
+                    section_text,
+                    max_tokens=max_tokens,
+                    overlap_tokens=overlap_tokens,
+                ):
                     text = chunk_text_item.strip()
                     tokens = tokenize(text)
                     if not tokens:
@@ -262,9 +394,13 @@ def build_index(
         embed_model_used = embed_model
 
     return {
-        "version": 2,
+        "version": 3,
         "created_at": datetime.utcnow().isoformat() + "Z",
-        "params": {"max_chars": max_chars, "overlap": overlap},
+        "params": {
+            "max_tokens": max_tokens,
+            "overlap_tokens": overlap_tokens,
+            "chunking": "section-aware + token window + overlap",
+        },
         "bm25": {"k1": 1.5, "b": 0.75, "avgdl": avgdl, "idf": idf},
         "has_embeddings": embed_model_used is not None,
         "embed_model": embed_model_used,
@@ -324,6 +460,7 @@ def search(
     embed_weight: float = 0.4,
     rerank_weight: float = 0.2,
     require_overlap: bool = True,
+    min_overlap_ratio: float = 0.34,
 ) -> list[dict]:
     q_terms = [t for t in tokenize(query) if t not in STOPWORDS]
     q_tf = Counter(q_terms)
@@ -335,6 +472,11 @@ def search(
         return []
 
     bm25 = index.get("bm25", {})
+    vocab_terms = set(bm25.get("idf", {}).keys())
+    q_term_set = set(q_tf.keys())
+    known_terms = q_term_set.intersection(vocab_terms)
+    if require_overlap and not known_terms:
+        return []
     bm25_scores = [_bm25_score(chunk, q_tf, bm25) for chunk in chunks]
     bm25_norm = _min_max_norm(bm25_scores)
 
@@ -351,12 +493,11 @@ def search(
         total_weight = bm25_weight if bm25_weight > 0 else 1.0
 
     results: list[tuple[float, dict]] = []
-    q_term_set = set(q_tf.keys())
     required_overlap = 0
     if require_overlap:
-        if len(q_term_set) >= 3:
+        if len(known_terms) >= 3:
             required_overlap = 2
-        elif len(q_term_set) >= 1:
+        elif len(known_terms) >= 1:
             required_overlap = 1
     for idx, chunk in enumerate(chunks):
         bm25_score = bm25_norm[idx]
@@ -368,10 +509,12 @@ def search(
 
         overlap = 0.0
         overlap_count = 0
-        if q_term_set:
-            overlap_count = len(q_term_set.intersection(chunk.get("tf", {}).keys()))
-            overlap = overlap_count / len(q_term_set)
+        if known_terms:
+            overlap_count = len(known_terms.intersection(chunk.get("tf", {}).keys()))
+            overlap = overlap_count / len(known_terms)
         if require_overlap and overlap_count < required_overlap:
+            continue
+        if require_overlap and overlap < min_overlap_ratio:
             continue
         combined += rerank_weight * overlap
 
