@@ -8,7 +8,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import rag, sandbox, weather
+from app import geocode, rag, sandbox, weather
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 WEB_DIR = BASE_DIR / "web"
@@ -119,16 +119,34 @@ async def ask(
 
 @app.post("/api/weather")
 async def weather_api(
-    lat: float = Form(...),
-    lon: float = Form(...),
     start: str = Form(...),
     end: str = Form(...),
+    city: Optional[str] = Form(None),
+    country: Optional[str] = Form(None),
+    lat: Optional[float] = Form(None),
+    lon: Optional[float] = Form(None),
     sandbox_mode: str = Form("none"),
 ) -> dict:
     if sandbox_mode not in ("none", "docker"):
         raise HTTPException(status_code=400, detail="Invalid sandbox mode")
 
     try:
+        resolved_name = None
+        if city:
+            geo = geocode.geocode_city(city, country=country)
+            lat = float(geo["latitude"])
+            lon = float(geo["longitude"])
+            name = geo.get("name") or city
+            parts = [name]
+            if geo.get("admin1"):
+                parts.append(str(geo["admin1"]))
+            if geo.get("country_code"):
+                parts.append(str(geo["country_code"]))
+            resolved_name = ", ".join(parts)
+
+        if lat is None or lon is None:
+            raise ValueError("Provide a city or explicit latitude/longitude.")
+
         if sandbox_mode == "docker":
             result = sandbox.run_weather_in_docker(lat, lon, start, end).payload
         else:
@@ -138,4 +156,6 @@ async def weather_api(
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    if resolved_name:
+        result["location_name"] = resolved_name
     return result

@@ -10,8 +10,8 @@ const embedModel = document.getElementById("embedModel");
 const questionInput = document.getElementById("questionInput");
 const sendBtn = document.getElementById("sendBtn");
 const messages = document.getElementById("messages");
-const weatherLat = document.getElementById("weatherLat");
-const weatherLon = document.getElementById("weatherLon");
+const weatherCity = document.getElementById("weatherCity");
+const weatherCountry = document.getElementById("weatherCountry");
 const weatherStart = document.getElementById("weatherStart");
 const weatherEnd = document.getElementById("weatherEnd");
 const weatherSandbox = document.getElementById("weatherSandbox");
@@ -44,6 +44,10 @@ function setDefaultWeatherDates() {
 }
 
 setDefaultWeatherDates();
+
+if (weatherCity && !weatherCity.value) {
+  weatherCity.value = "San Francisco";
+}
 
 function appendMessage(role, text, citations = []) {
   const wrapper = document.createElement("div");
@@ -138,20 +142,22 @@ sendBtn.addEventListener("click", async () => {
 });
 
 weatherBtn.addEventListener("click", async () => {
-  if (!weatherLat || !weatherLon || !weatherStart || !weatherEnd) return;
-  const lat = weatherLat.value.trim();
-  const lon = weatherLon.value.trim();
+  if (!weatherCity || !weatherStart || !weatherEnd) return;
+  const city = weatherCity.value.trim();
+  const country = weatherCountry ? weatherCountry.value.trim() : "";
   const start = weatherStart.value.trim();
   const end = weatherEnd.value.trim();
-  if (!lat || !lon || !start || !end) {
-    weatherStatus.textContent = "Please fill latitude, longitude, start, and end.";
+  if (!city || !start || !end) {
+    weatherStatus.textContent = "Please fill city, start, and end.";
     return;
   }
 
   weatherStatus.textContent = "Fetching weather...";
   const formData = new FormData();
-  formData.append("lat", lat);
-  formData.append("lon", lon);
+  formData.append("city", city);
+  if (country) {
+    formData.append("country", country);
+  }
   formData.append("start", start);
   formData.append("end", end);
   formData.append("sandbox", weatherSandbox && weatherSandbox.checked ? "docker" : "none");
@@ -163,9 +169,10 @@ weatherBtn.addEventListener("click", async () => {
       throw new Error(data.detail || "Weather request failed");
     }
     const stats = data.stats || {};
+    const locationName = data.location_name || `${data.location?.lat}, ${data.location?.lon}`;
     const summary =
       "Weather summary (Open-Meteo)\n" +
-      `Location: ${data.location?.lat}, ${data.location?.lon}\n` +
+      `Location: ${locationName}\n` +
       `Range: ${data.start_date} to ${data.end_date}\n` +
       `Mean temp: ${stats.mean}\n` +
       `Std dev: ${stats.std}\n` +
