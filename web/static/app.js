@@ -10,6 +10,13 @@ const embedModel = document.getElementById("embedModel");
 const questionInput = document.getElementById("questionInput");
 const sendBtn = document.getElementById("sendBtn");
 const messages = document.getElementById("messages");
+const weatherLat = document.getElementById("weatherLat");
+const weatherLon = document.getElementById("weatherLon");
+const weatherStart = document.getElementById("weatherStart");
+const weatherEnd = document.getElementById("weatherEnd");
+const weatherSandbox = document.getElementById("weatherSandbox");
+const weatherBtn = document.getElementById("weatherBtn");
+const weatherStatus = document.getElementById("weatherStatus");
 
 function setTheme(theme) {
   document.body.setAttribute("data-theme", theme);
@@ -24,6 +31,19 @@ themeToggle.addEventListener("click", () => {
   const current = document.body.getAttribute("data-theme");
   setTheme(current === "dark" ? "light" : "dark");
 });
+
+function setDefaultWeatherDates() {
+  if (!weatherStart || !weatherEnd) return;
+  const today = new Date();
+  const end = today.toISOString().slice(0, 10);
+  const startDate = new Date(today);
+  startDate.setDate(today.getDate() - 7);
+  const start = startDate.toISOString().slice(0, 10);
+  if (!weatherStart.value) weatherStart.value = start;
+  if (!weatherEnd.value) weatherEnd.value = end;
+}
+
+setDefaultWeatherDates();
 
 function appendMessage(role, text, citations = []) {
   const wrapper = document.createElement("div");
@@ -114,6 +134,50 @@ sendBtn.addEventListener("click", async () => {
     appendMessage("assistant", data.answer, data.citations || []);
   } catch (err) {
     appendMessage("assistant", `Error: ${err.message}`);
+  }
+});
+
+weatherBtn.addEventListener("click", async () => {
+  if (!weatherLat || !weatherLon || !weatherStart || !weatherEnd) return;
+  const lat = weatherLat.value.trim();
+  const lon = weatherLon.value.trim();
+  const start = weatherStart.value.trim();
+  const end = weatherEnd.value.trim();
+  if (!lat || !lon || !start || !end) {
+    weatherStatus.textContent = "Please fill latitude, longitude, start, and end.";
+    return;
+  }
+
+  weatherStatus.textContent = "Fetching weather...";
+  const formData = new FormData();
+  formData.append("lat", lat);
+  formData.append("lon", lon);
+  formData.append("start", start);
+  formData.append("end", end);
+  formData.append("sandbox", weatherSandbox && weatherSandbox.checked ? "docker" : "none");
+
+  try {
+    const res = await fetch("/api/weather", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || "Weather request failed");
+    }
+    const stats = data.stats || {};
+    const summary =
+      "Weather summary (Open-Meteo)\n" +
+      `Location: ${data.location?.lat}, ${data.location?.lon}\n` +
+      `Range: ${data.start_date} to ${data.end_date}\n` +
+      `Mean temp: ${stats.mean}\n` +
+      `Std dev: ${stats.std}\n` +
+      `Min: ${stats.min}  Max: ${stats.max}\n` +
+      `Missing: ${stats.missing}  Anomalies: ${stats.anomalies}`;
+
+    weatherStatus.textContent = "Weather updated.";
+    appendMessage("assistant", summary);
+  } catch (err) {
+    const msg = err.message || "Weather request failed";
+    weatherStatus.textContent = msg;
+    appendMessage("assistant", `Weather error: ${msg}`);
   }
 });
 

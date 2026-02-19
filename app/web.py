@@ -8,7 +8,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import rag
+from app import rag, sandbox, weather
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 WEB_DIR = BASE_DIR / "web"
@@ -115,3 +115,27 @@ async def ask(
         "answer": answer,
         "citations": citations,
     }
+
+
+@app.post("/api/weather")
+async def weather_api(
+    lat: float = Form(...),
+    lon: float = Form(...),
+    start: str = Form(...),
+    end: str = Form(...),
+    sandbox_mode: str = Form("none"),
+) -> dict:
+    if sandbox_mode not in ("none", "docker"):
+        raise HTTPException(status_code=400, detail="Invalid sandbox mode")
+
+    try:
+        if sandbox_mode == "docker":
+            result = sandbox.run_weather_in_docker(lat, lon, start, end).payload
+        else:
+            result = weather.run_weather_analysis(lat, lon, start, end)
+    except sandbox.SandboxError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return result

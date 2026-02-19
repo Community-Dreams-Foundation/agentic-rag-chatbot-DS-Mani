@@ -41,6 +41,32 @@
     </section>
 
     <section class="panel">
+      <h3>Weather</h3>
+      <label>
+        Latitude
+        <input id="weatherLat" type="number" step="0.0001" value="37.7749" />
+      </label>
+      <label>
+        Longitude
+        <input id="weatherLon" type="number" step="0.0001" value="-122.4194" />
+      </label>
+      <label>
+        Start date
+        <input id="weatherStart" type="date" />
+      </label>
+      <label>
+        End date
+        <input id="weatherEnd" type="date" />
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="weatherSandbox" />
+        Use Docker sandbox
+      </label>
+      <button id="weatherBtn" class="primary">Run Weather</button>
+      <div id="weatherStatus" class="status"></div>
+    </section>
+
+    <section class="panel">
       <h3>Indexed Files</h3>
       <ul id="fileList" class="file-list"></ul>
     </section>
