@@ -11,6 +11,14 @@ You may implement one feature or multiple. Partial implementations are acceptabl
 
 ---
 
+## What I Built (Implementation Summary)
+- **RAG pipeline (core):** ingests `.pdf`, `.txt`, `.md`; PyMuPDF parsing with header/footer cleanup; section-aware chunking with token windows + overlap and math preservation; hybrid retrieval (BM25 + optional embeddings); strict grounding with refusal on missing evidence; citations with `source`, `locator`, and snippet.
+- **Memory (core-ish):** selective writes to `USER_MEMORY.md` and `COMPANY_MEMORY.md`; high-signal facts only.
+- **Weather tool (optional):** Open-Meteo analysis with 31-day cap + timeouts; historical + forecast support; optional Docker sandbox (`--sandbox docker`); UI weather panel with geocoding.
+- **UI:** FastAPI backend + simple chat UI; upload/index/ask with citations; weather panel; JSON response toggle.
+
+---
+
 ## Repository Guide (What each file is for)
 
 - Root `README.md` is the submission README (Quick Start + Video link goes here).
@@ -48,8 +56,8 @@ You may implement one feature or multiple. Partial implementations are acceptabl
 ## Participant Info (Required)
 - Full Name: Manikanta Reddy Yerolla
 - Email: manireddyyerolla@gmail.com
-- GitHub Username: DS-Mani
-VIDEO LINK: https://drive.google.com/file/d/1vAU_QIjuA62RIbDfD4Yk_4t69irGTGi4/view?usp=sharing
+- GitHub Username: DS-MANI
+
 ---
 
 ## What You Need To Build
@@ -164,7 +172,7 @@ Add your video link here:
 
 ## Video Walkthrough
 
-PASTE YOUR LINK HERE
+https://drive.google.com/file/d/1vAU_QIjuA62RIbDfD4Yk_4t69irGTGi4/view?usp=sharing
 
 ## 4) Important
 Submissions missing the Participant Info block may be deprioritized during review.
