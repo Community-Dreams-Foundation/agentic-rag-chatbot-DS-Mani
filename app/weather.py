@@ -6,7 +6,8 @@ from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-BASE_URL = "https://api.open-meteo.com/v1/forecast"
+BASE_FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
+BASE_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
 
 def _parse_date(value: str) -> datetime:
@@ -23,21 +24,54 @@ def _safe_date_range(start: str, end: str, max_days: int = 31) -> tuple[str, str
     return start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d")
 
 
+def _fetch(url: str, params: dict) -> dict:
+    req = Request(url, headers={"User-Agent": "agentic-rag-demo/1.0"})
+    with urlopen(f"{url}?{urlencode(params)}", timeout=10) as resp:
+        payload = resp.read().decode("utf-8")
+    return json.loads(payload)
+
+
+def _merge_hourly_series(parts: list[dict]) -> dict:
+    if not parts:
+        return {}
+    merged: dict[str, list] = {}
+    for part in parts:
+        hourly = part.get("hourly", {})
+        for key, values in hourly.items():
+            if key not in merged:
+                merged[key] = []
+            merged[key].extend(values or [])
+    return {"hourly": merged}
+
+
 def fetch_hourly_series(lat: float, lon: float, start: str, end: str, variable: str = "temperature_2m") -> dict:
     start_date, end_date = _safe_date_range(start, end)
-    params = {
+    start_dt = _parse_date(start_date).date()
+    end_dt = _parse_date(end_date).date()
+    today = datetime.utcnow().date()
+
+    base_params = {
         "latitude": lat,
         "longitude": lon,
         "hourly": variable,
-        "start_date": start_date,
-        "end_date": end_date,
         "timezone": "UTC",
     }
-    url = f"{BASE_URL}?{urlencode(params)}"
-    req = Request(url, headers={"User-Agent": "agentic-rag-demo/1.0"})
-    with urlopen(req, timeout=10) as resp:
-        payload = resp.read().decode("utf-8")
-    return json.loads(payload)
+
+    if end_dt < today:
+        params = {**base_params, "start_date": start_date, "end_date": end_date}
+        return _fetch(BASE_ARCHIVE_URL, params)
+
+    if start_dt >= today:
+        params = {**base_params, "start_date": start_date, "end_date": end_date}
+        return _fetch(BASE_FORECAST_URL, params)
+
+    past_end = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+    past_params = {**base_params, "start_date": start_date, "end_date": past_end}
+    future_params = {**base_params, "start_date": today.strftime("%Y-%m-%d"), "end_date": end_date}
+
+    past = _fetch(BASE_ARCHIVE_URL, past_params)
+    future = _fetch(BASE_FORECAST_URL, future_params)
+    return _merge_hourly_series([past, future])
 
 
 def analyze_series(values: list[float]) -> dict[str, Any]:
